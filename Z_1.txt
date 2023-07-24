@@ -1,5 +1,239 @@
-Zadanie1 (jeden punkt)
-Program będzie uruchamiany przez podanie kolejno : numeru dnia urodzenia+10, pierwszej litery imienia oraz
-pierwszej litery nazwiska. Wielkość liter nie będzie miała znaczenia
-– Gdy podany jest prawidłowo szyfr komputer napisze "Brawo znasz moje parametry"
-– Gdy szyfr jest nieprawidłowy komputer napisze "Nie znasz szyfru żegnaj".
+using Azure.Storage.Blobs.Models;
+using CloudRetailer.BackOffice.ComponentModel;
+using CloudRetailer.Common.Data;
+using CloudRetailer.Common.Entities;
+using CloudRetailer.Common.TestUtils;
+using CloudRetailer.Plugins.Extensions.BackOffice;
+using CloudRetailer.Plugins.Extensions.Entities;
+using CloudRetailer.Plugins.Extensions.Entities.Services;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace CloudRetailer.Plugins.Extensions.Test
+{
+    [TestClass]
+    public class CategoryInheritedSettingServiceTest
+    {
+        private const string EntityKey = "InheritedTest";
+
+
+        private static MockContextLocker SetupFrameworkContext()
+        {
+            return FrameworkTestHelper.SetupFrameworkContextWithPlugins(new ExtensionsPlugIn());
+        }
+
+        [DataTestMethod]
+        [DataRow("", "", "", true)]
+        [DataRow("", "", "true", true)]
+        [DataRow("", "", "false", false)]
+        [DataRow("", "true", "", true)]
+        [DataRow("", "true", "true", true)]
+        [DataRow("", "true", "false", false)]
+        [DataRow("", "false", "", false)]
+        [DataRow("", "false", "true", true)]
+        [DataRow("", "false", "false", false)]
+        [DataRow("true", "", "", true)]
+        [DataRow("true", "", "true", true)]
+        [DataRow("true", "", "false", false)]
+        [DataRow("true", "true", "", true)]
+        [DataRow("true", "true", "false", false)]
+        [DataRow("true", "true", "true", true)]
+        [DataRow("true", "false", "", false)]
+        [DataRow("true", "false", "true", true)]
+        [DataRow("true", "false", "false", false)]
+        [DataRow("false", "true", "true", true)]
+        [DataRow("false", "true", "", true)]
+        [DataRow("false", "true", "false", false)]
+        [DataRow("false", "", "", false)]
+        [DataRow("false", "", "true", true)]
+        [DataRow("false", "", "false", false)]
+        [DataRow("false", "false", "", false)]
+        [DataRow("false", "false", "true", true)]
+        [DataRow("false", "false", "false", false)]
+        [DataRow("", "", null, true)]
+        [DataRow("", "true", null, true)]
+        [DataRow("", "false", null, false)]
+        [DataRow("true", "", null, true)]
+        [DataRow("true", "true", null, true)]
+        [DataRow("true", "false", null, false)]
+        [DataRow("false", "", null, false)]
+        [DataRow("false", "true", null, true)]
+        [DataRow("false", "false", null, false)]
+        [DataRow("", null, null, true)]
+        [DataRow("false", null, null, false)]
+        [DataRow("true", null, null, true)]
+        public void TestGetValuesForProductIds(string level0Setting, string level1Setting, string level2Setting, bool expectedResult)
+        {
+            // Arrange
+            using (SetupFrameworkContext())
+            {
+                using (var db = FrameworkContext.Current.Db)
+                {
+
+                    var level0 = CreateProductCategory(db, 1, "Level0", level0Setting);
+
+                    var level1 = CreateProductCategory(db, 2, "Level1", level1Setting);
+                    level1.ParentId = level0.Id;
+
+                    var level2 = CreateProductCategory(db, 3, "Level2",level2Setting);
+                    level2.ParentId = level1.Id;
+
+                    var product = new Product();
+                    product.IsActive = true;
+
+                    if (level0Setting != null)
+                    {
+                        product.DepartmentId = level0.Id;
+                    }
+                    
+                    if (level1Setting != null)
+                    {
+                        product.CategoryId = level1.Id;
+                    }
+                    
+                    if (level2Setting != null)
+                    {
+                        product.ClassificationId = level2.Id;
+                    }
+
+                    db.Add(product);
+                    db.CommitChanges();
+
+                    //Act
+                    var service = new CategoryInheritedSettingService<bool?>(FrameworkContext.Current.Db, "InheritedTest");
+                    var result = service
+                        .GetValuesForProductIds(new[] { product.Id })
+                        .FirstOrDefault(p => p.productId == product.Id).value ?? true;
+
+                    //Assert
+                    Assert.AreEqual(expectedResult, result);
+                }
+            }
+        }
+        [DataTestMethod]
+        [DataRow(null, "", "", true)]
+        [DataRow(null, "", "true", true)]
+        [DataRow(null, "", "false", false)]
+        [DataRow(null, "true", "", true)]
+        [DataRow(null, "true", "true", true)]
+        [DataRow(null, "true", "false", false)]
+        [DataRow(null, "false", "", false)]
+        [DataRow(null, "false", "true", true)]
+        [DataRow(null, "false", "false", false)]
+        public void TestGetInheritedValue1level(string level0Setting1, string level1Setting1, string level2Setting1, bool expectedResult1)
+        {
+            using (SetupFrameworkContext())
+            {
+                using (var db = FrameworkContext.Current.Db)
+                {
+
+                    var level0 = CreateProductCategory(db, 1, "Level0", level0Setting1);
+
+                    var level1 = CreateProductCategory(db, 2, "Level1", level1Setting1);
+                    level1.ParentId = level0.Id;
+
+                    var level2 = CreateProductCategory(db, 3, "Level2", level2Setting1);
+                    level2.ParentId = level1.Id;
+
+                    var product = new Product();
+                    product.IsActive = true;
+
+                    if (level0Setting1 != null)
+                    {
+                        product.DepartmentId = level0.Id;
+                    }
+
+                    if (level1Setting1 != null)
+                    {
+                        product.CategoryId = level1.Id;
+                    }
+
+                    if (level2Setting1 != null)
+                    {
+                        product.ClassificationId = level2.Id;
+                    }
+
+                    db.Add(product);
+                    db.CommitChanges();
+                    var service = new CategoryInheritedSettingService<bool?>(FrameworkContext.Current.Db, "InheritedTest");
+                    var result = service.GetInheritedValue(level1.Id) ?? true;
+
+                    Assert.AreEqual(expectedResult1, result);
+                }
+            }
+                }
+        [DataTestMethod]
+        [DataRow(null, null, "", true)]
+        [DataRow(null, null, "true", true)]
+        [DataRow(null, null, "false", false)]
+        public void TestGetInheritedValue2level(string level0Setting2, string level1Setting2, string level2Setting2, bool expectedResult2)
+        {
+            using (SetupFrameworkContext())
+            {
+                using (var db = FrameworkContext.Current.Db)
+                {
+
+                    var level0 = CreateProductCategory(db, 1, "Level0", level0Setting2);
+
+                    var level1 = CreateProductCategory(db, 2, "Level1", level1Setting2);
+                    level1.ParentId = level0.Id;
+
+                    var level2 = CreateProductCategory(db, 3, "Level2", level2Setting2);
+                    level2.ParentId = level1.Id;
+
+                    var product = new Product();
+                    product.IsActive = true;
+
+                    if (level0Setting2 != null)
+                    {
+                        product.DepartmentId = level0.Id;
+                    }
+
+                    if (level1Setting2 != null)
+                    {
+                        product.CategoryId = level1.Id;
+                    }
+
+                    if (level2Setting2 != null)
+                    {
+                        product.ClassificationId = level2.Id;
+                    }
+
+                    db.Add(product);
+                    db.CommitChanges();
+
+                    //Act
+                    var service = new CategoryInheritedSettingService<bool?>(FrameworkContext.Current.Db, "InheritedTest");
+                    var result = service.GetInheritedValue(level2.Id) ?? true;
+
+
+                    Assert.AreEqual(expectedResult2, result);
+                }
+            }
+        }
+
+        private static ProductCategory CreateProductCategory(IDataAccess db, int id, string codeDescription, string setting)
+        {
+            var category = new ProductCategory();
+            category.Id = id;
+            category.Code = codeDescription;
+            category.Description = codeDescription;
+            category.IsActive = true;
+            db.Add(category);
+
+
+
+            if (!string.IsNullOrEmpty(setting))
+            {
+                var entitySettings = EntitySettings.CreateOrGet(db, nameof(ProductCategory), id, EntityKey, setting);
+            }
+
+            return category;
+        }
+    }
+
+    }
